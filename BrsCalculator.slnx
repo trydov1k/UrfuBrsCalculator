@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BrsCalculator.Api/BrsCalculator.Api.csproj" />
+    <Project Path="src/BrsCalculator.Application/BrsCalculator.Application.csproj" />
+    <Project Path="src/BrsCalculator.Client/BrsCalculator.Client.csproj" />
+    <Project Path="src/BrsCalculator.Domain/BrsCalculator.Domain.csproj" />
+    <Project Path="src/BrsCalculator.Infrastructure/BrsCalculator.Infrastructure.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,352 @@
+@page "/semesters/{SemesterId:guid}/subjects/{SubjectId:guid}"
+@attribute [Authorize]
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+@inject IJSRuntime Js
+@inject ConfirmService Confirm
+
+@if (_subject is null)
+{
+    <MudButton StartIcon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Text"
+               Href="@($"/semesters/{SemesterId}")" Class="mb-3">Назад к семестру</MudButton>
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    var display = DisplaySubject;
+
+    <MudButton StartIcon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Outlined" Color="Color.Primary"
+               Href="@($"/semesters/{SemesterId}")" Class="mb-3">Назад к семестру</MudButton>
+
+    <MudPaper Class="pa-4 mb-4" id="export-root">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="@($"/semesters/{SemesterId}")"
+                               aria-label="Назад к семестру" />
+                <MudText Typo="Typo.h4">@display.Name</MudText>
+            </MudStack>
+            <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                @if (_whatIfMode)
+                {
+                    <MudChip T="string" Color="Color.Info">Режим «Что если?»</MudChip>
+                }
+                <MudChip T="string" Size="Size.Large" Color="@GradeColor(display.Grade)">
+                    @display.TotalScore.ToString("0.##") / 100 — оценка @display.Grade
+                </MudChip>
+            </MudStack>
+        </MudStack>
+        @if (!display.IsPassed && !string.IsNullOrEmpty(display.FailureReason))
+        {
+            <MudAlert Severity="Severity.Warning" Class="mt-2">@display.FailureReason</MudAlert>
+        }
+    </MudPaper>
+
+    <MudTabs @bind-ActivePanelIndex="_tabIndex" Class="mb-4">
+        <MudTabPanel Text="Баллы" />
+        <MudTabPanel Text="Структура" />
+    </MudTabs>
+
+    @if (_tabIndex == 0)
+    {
+        <MudStack Row="true" Spacing="2" Class="mb-3">
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="ToggleWhatIf">
+                @(_whatIfMode ? "Выйти из «Что если?»" : "Режим «Что если?»")
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="@(() => ExportAsync("png"))">Экспорт PNG</MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="@(() => ExportAsync("pdf"))">Экспорт PDF</MudButton>
+        </MudStack>
+
+        @if (_whatIfMode)
+        {
+            <MudPaper Class="pa-4 mb-4">
+                <MudText Typo="Typo.h6">Целевая оценка</MudText>
+                <MudStack Row="true" Spacing="2" Class="mt-2">
+                    <MudSelect @bind-Value="_targetGrade" Label="Оценка" Style="max-width:160px">
+                        <MudSelectItem Value="@("3")">3 (от 40)</MudSelectItem>
+                        <MudSelectItem Value="@("4")">4 (от 60)</MudSelectItem>
+                        <MudSelectItem Value="@("5")">5 (от 80)</MudSelectItem>
+                    </MudSelect>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CalculateWhatIfAsync">
+                        Рассчитать распределение
+                    </MudButton>
+                    <MudButton Variant="Variant.Text" OnClick="ApplySuggestionsAsync"
+                               Disabled="_whatIfResult?.SuggestedScores.Count == 0">
+                        Применить предложение
+                    </MudButton>
+                </MudStack>
+                @if (_whatIfResult is not null)
+                {
+                    <MudAlert Severity="Severity.Info" Class="mt-3">
+                        Сейчас: @_whatIfResult.CurrentTotal.ToString("0.##").
+                        Цель: @_whatIfResult.TargetTotal (@_targetGrade).
+                        Не хватает: @_whatIfResult.Shortfall.ToString("0.##").
+                        Прогноз: @_whatIfResult.ProjectedGrade.
+                    </MudAlert>
+                }
+            </MudPaper>
+        }
+
+        <MudTable Items="@ScoreRows" Dense="true" Hover="true">
+            <HeaderContent>
+                <MudTh>Компонент</MudTh>
+                <MudTh>Макс.</MudTh>
+                <MudTh>Набрано</MudTh>
+                <MudTh>Расчёт</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>
+                    <span style="padding-left:@(Depth(context) * 16)px">@context.Name</span>
+                </MudTd>
+                <MudTd>@context.MaxScore</MudTd>
+                <MudTd>
+                    <MudNumericField T="decimal?" Value="@GetScoreValue(context)"
+                                     ValueChanged="@(v => OnScoreChangedAsync(context, v))"
+                                     Min="0m" Max="@context.MaxScore" Culture="AppCulture.Russian"
+                                     Style="max-width:130px" Disabled="@(!context.IsLeaf)" />
+                </MudTd>
+                <MudTd>@GetComputed(context).ToString("0.##")</MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+    else
+    {
+        <MudStack Row="true" Class="mb-3" Spacing="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       OnClick="@(() => { _editStructure = !_editStructure; })">
+                @(_editStructure ? "Готово" : "Редактировать структуру")
+            </MudButton>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary align-self-center">
+                Добавляйте компоненты под аттестациями. Сумма весов соседних компонентов — 1;
+                если сумма больше 1, сумма их максимальных баллов должна быть 100.
+            </MudText>
+        </MudStack>
+
+        @if (display.Nodes.FirstOrDefault(n => n.LevelType == NodeLevelType.Subject) is { } root)
+        {
+            <SubjectNodeTree Nodes="display.Nodes" ParentId="root.Id" Depth="0" EditMode="_editStructure"
+                             OnEdit="OpenEditDialog" OnAddChild="OpenAddDialog" OnDelete="ConfirmDeleteNode" />
+        }
+    }
+
+    <NodeEditDialog @bind-Visible="_nodeDialogVisible" IsEdit="_nodeDialogIsEdit"
+                    ParentNode="_dialogParent" EditNode="_dialogEditNode" AllowExamFlag="_allowExamFlag"
+                    OnSave="SaveNodeDialog" />
+}
+
+@code {
+    [Parameter] public Guid SemesterId { get; set; }
+    [Parameter] public Guid SubjectId { get; set; }
+
+    private SubjectDetailDto? _subject;
+    private SubjectDetailDto? _whatIfPreview;
+    private int _tabIndex;
+    private bool _editStructure;
+    private bool _whatIfMode;
+    private string _targetGrade = "4";
+    private WhatIfResultDto? _whatIfResult;
+    private readonly Dictionary<Guid, decimal?> _whatIfOverrides = new();
+
+    private bool _nodeDialogVisible;
+    private bool _nodeDialogIsEdit;
+    private SubjectNodeDto? _dialogParent;
+    private SubjectNodeDto? _dialogEditNode;
+    private bool _allowExamFlag;
+
+    private SubjectDetailDto DisplaySubject => _whatIfMode && _whatIfPreview is not null
+        ? _whatIfPreview : _subject!;
+
+    private IEnumerable<SubjectNodeDto> ScoreRows => DisplaySubject.Nodes
+        .Where(n => n.LevelType == NodeLevelType.Component || n.LevelType == NodeLevelType.Certification)
+        .OrderBy(n => n.Path);
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _subject = await Api.GetSubjectAsync(SemesterId, SubjectId);
+        if (_whatIfMode)
+            await RefreshWhatIfPreviewAsync();
+    }
+
+    private static int Depth(SubjectNodeDto node) => node.Path.Count(c => c == '.');
+
+    private static Color GradeColor(string grade) => grade switch
+    {
+        "5" => Color.Success,
+        "4" => Color.Info,
+        "3" => Color.Warning,
+        _ => Color.Error
+    };
+
+    private decimal GetComputed(SubjectNodeDto node) =>
+        DisplaySubject.Nodes.FirstOrDefault(n => n.Id == node.Id)?.ComputedScore ?? node.ComputedScore;
+
+    private decimal? GetScoreValue(SubjectNodeDto node)
+    {
+        if (_whatIfMode && _whatIfOverrides.TryGetValue(node.Id, out var v))
+            return v;
+        return node.ActualScore;
+    }
+
+    private async Task OnScoreChangedAsync(SubjectNodeDto node, decimal? value)
+    {
+        if (_whatIfMode)
+        {
+            _whatIfOverrides[node.Id] = node.IsExam && value.HasValue
+                ? Math.Clamp(Math.Max(40m, value.Value), 0, node.MaxScore)
+                : value;
+            await RefreshWhatIfPreviewAsync();
+            return;
+        }
+
+        _subject = await Api.UpdateScoreAsync(SemesterId, SubjectId, node.Id, value);
+        if (_subject is null)
+            Snackbar.Add("Не удалось сохранить балл", Severity.Error);
+    }
+
+    private async Task RefreshWhatIfPreviewAsync()
+    {
+        _whatIfPreview = await Api.PreviewAsync(SemesterId, SubjectId, _whatIfOverrides);
+        EnsureExamMinimumOverride();
+    }
+
+    private void ToggleWhatIf()
+    {
+        _whatIfMode = !_whatIfMode;
+        if (!_whatIfMode)
+        {
+            _whatIfOverrides.Clear();
+            _whatIfResult = null;
+            _whatIfPreview = null;
+        }
+        else
+        {
+            EnsureExamMinimumOverride();
+            _ = RefreshWhatIfPreviewAsync();
+        }
+    }
+
+    private void EnsureExamMinimumOverride()
+    {
+        var exam = _subject?.Nodes.FirstOrDefault(n => n.IsExam);
+        if (exam is null)
+            return;
+
+        var raw = _whatIfOverrides.TryGetValue(exam.Id, out var value) ? value : exam.ActualScore;
+        _whatIfOverrides[exam.Id] = Math.Clamp(Math.Max(40m, raw ?? 0), 0, exam.MaxScore);
+    }
+
+    private async Task CalculateWhatIfAsync()
+    {
+        var request = new WhatIfRequest(_whatIfOverrides, _targetGrade);
+        _whatIfResult = await Api.WhatIfAsync(SemesterId, SubjectId, request);
+        if (_whatIfResult is null)
+        {
+            Snackbar.Add("Не удалось рассчитать сценарий", Severity.Error);
+            return;
+        }
+        foreach (var (id, score) in _whatIfResult.SuggestedScores)
+            _whatIfOverrides[id] = score;
+        EnsureExamMinimumOverride();
+        await RefreshWhatIfPreviewAsync();
+    }
+
+    private async Task ApplySuggestionsAsync()
+    {
+        if (_whatIfResult is null) return;
+        foreach (var (id, score) in _whatIfResult.SuggestedScores)
+            _whatIfOverrides[id] = score;
+        EnsureExamMinimumOverride();
+        await RefreshWhatIfPreviewAsync();
+        Snackbar.Add("Предложенные баллы подставлены в поля (не сохранены в БД)", Severity.Info);
+    }
+
+    private void OpenAddDialog(SubjectNodeDto parent)
+    {
+        _nodeDialogIsEdit = false;
+        _dialogParent = parent;
+        _dialogEditNode = null;
+        _allowExamFlag = NodeTreeHelper.CanMarkExam(parent);
+        _nodeDialogVisible = true;
+    }
+
+    private void OpenEditDialog(SubjectNodeDto node)
+    {
+        _nodeDialogIsEdit = true;
+        _dialogEditNode = node;
+        _dialogParent = _subject?.Nodes.FirstOrDefault(n => n.Id == node.ParentId);
+        _allowExamFlag = node.IsExam ||
+            (node.LevelType == NodeLevelType.Component && _dialogParent is not null &&
+             NodeTreeHelper.CanMarkExam(_dialogParent));
+        _nodeDialogVisible = true;
+    }
+
+    private async Task SaveNodeDialog(NodeEditDialog.NodeEditResult result)
+    {
+        if (_subject is null) return;
+
+        if (_nodeDialogIsEdit && _dialogEditNode is not null)
+        {
+            var max = _dialogEditNode.LevelType == NodeLevelType.Component && !_dialogEditNode.IsExam
+                ? result.MaxScore
+                : _dialogEditNode.MaxScore;
+            if (result.IsExam) max = 100;
+            var (updated, err) = await Api.UpdateNodeAsync(SemesterId, SubjectId, _dialogEditNode.Id,
+                new UpdateNodeRequest(result.Name, max, result.Coefficient, result.IsExam));
+            if (updated is null)
+            {
+                Snackbar.Add(err ?? "Ошибка сохранения", Severity.Error);
+                return;
+            }
+            _subject = updated;
+        }
+        else if (_dialogParent is not null)
+        {
+            var (updated, err) = await Api.CreateNodeAsync(SemesterId, SubjectId, new CreateNodeRequest(
+                _dialogParent.Id,
+                result.Name,
+                NodeLevelType.Component,
+                null,
+                result.IsExam ? 100 : result.MaxScore,
+                result.Coefficient,
+                result.IsExam));
+            if (updated is null)
+            {
+                Snackbar.Add(err ?? "Ошибка создания", Severity.Error);
+                return;
+            }
+            _subject = updated;
+        }
+
+        Snackbar.Add("Структура обновлена", Severity.Success);
+        if (_whatIfMode)
+            await RefreshWhatIfPreviewAsync();
+    }
+
+    private async Task ConfirmDeleteNode(SubjectNodeDto node)
+    {
+        if (!await Confirm.AskAsync($"Удалить «{node.Name}» и все вложенные элементы?")) return;
+
+        var (updated, err) = await Api.DeleteNodeAsync(SemesterId, SubjectId, node.Id);
+        if (updated is null)
+        {
+            Snackbar.Add(err ?? "Ошибка удаления", Severity.Error);
+            return;
+        }
+        _subject = updated;
+        Snackbar.Add("Удалено", Severity.Success);
+    }
+
+    private async Task ExportAsync(string format)
+    {
+        try
+        {
+            await Js.InvokeVoidAsync("brsExport.exportElement", "export-root",
+                format, DisplaySubject.Name);
+        }
+        catch
+        {
+            Snackbar.Add("Экспорт недоступен", Severity.Warning);
+        }
+    }
+}

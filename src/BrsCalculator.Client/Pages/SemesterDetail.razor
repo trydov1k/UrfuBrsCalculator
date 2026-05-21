@@ -1,0 +1,184 @@
+@page "/semesters/{SemesterId:guid}"
+@attribute [Authorize]
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject ConfirmService Confirm
+
+<MudButton StartIcon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Outlined" Color="Color.Primary"
+           OnClick="GoToSemesters" Class="mb-3">Назад к семестрам</MudButton>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Class="mb-4">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" OnClick="GoToSemesters"
+                       aria-label="Назад к семестрам" />
+        <MudText Typo="Typo.h4">@(_semesterTitle ?? "Дисциплины")</MudText>
+    </MudStack>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreate">Добавить дисциплину</MudButton>
+</MudStack>
+
+@if (_subjects is null)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else if (_subjects.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">Добавьте первую дисциплину</MudAlert>
+}
+else
+{
+    <MudTable Items="_subjects" Hover="true" T="SubjectListItemDto" OnRowClick="OnRowClick">
+        <HeaderContent>
+            <MudTh>Название</MudTh>
+            <MudTh>Балл</MudTh>
+            <MudTh>Оценка</MudTh>
+            <MudTh>Сдано</MudTh>
+            <MudTh Style="width:120px" />
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.Name</MudTd>
+            <MudTd>@context.TotalScore.ToString("0.##")</MudTd>
+            <MudTd><MudChip T="string" Color="@GradeColor(context.Grade)">@context.Grade</MudChip></MudTd>
+            <MudTd>@(context.IsPassed ? "Да" : "Нет")</MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                               OnClick="@(() => OpenRename(context))" OnClick:stopPropagation="true" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => DeleteAsync(context))" OnClick:stopPropagation="true" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+<MudDialog @bind-Visible="_createVisible">
+    <TitleContent><MudText Typo="Typo.h6">Новая дисциплина</MudText></TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_subjectName" Label="Название" />
+        <MudText Class="mt-3 mb-1">Типы занятий</MudText>
+        @foreach (var lt in _lessonTypes)
+        {
+            <MudCheckBox @bind-Value="lt.Selected" Label="@lt.Name" />
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _createVisible = false)">Отмена</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CreateAsync">Создать</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog @bind-Visible="_renameVisible">
+    <TitleContent><MudText Typo="Typo.h6">Переименовать</MudText></TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_subjectName" Label="Название" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _renameVisible = false)">Отмена</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="RenameAsync">Сохранить</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public Guid SemesterId { get; set; }
+
+    private List<SubjectListItemDto>? _subjects;
+    private string? _semesterTitle;
+    private bool _createVisible;
+    private bool _renameVisible;
+    private Guid? _renameId;
+    private string _subjectName = "";
+    private readonly List<LessonTypeOption> _lessonTypes =
+    [
+        new() { Name = "Лекции", Selected = true },
+        new() { Name = "Практические занятия", Selected = true },
+        new() { Name = "Лабораторные работы", Selected = false }
+    ];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private void GoToSemesters() => Nav.NavigateTo("/semesters");
+
+    private async Task LoadAsync()
+    {
+        var semesters = await Api.GetSemestersAsync();
+        _semesterTitle = semesters?.FirstOrDefault(s => s.Id == SemesterId)?.Name;
+        _subjects = (await Api.GetSubjectsAsync(SemesterId))?.ToList();
+    }
+
+    private void OnRowClick(TableRowClickEventArgs<SubjectListItemDto> args) =>
+        Nav.NavigateTo($"/semesters/{SemesterId}/subjects/{args.Item.Id}");
+
+    private static Color GradeColor(string grade) => grade switch
+    {
+        "5" => Color.Success,
+        "4" => Color.Info,
+        "3" => Color.Warning,
+        _ => Color.Error
+    };
+
+    private void OpenCreate()
+    {
+        _subjectName = "";
+        _createVisible = true;
+    }
+
+    private void OpenRename(SubjectListItemDto s)
+    {
+        _renameId = s.Id;
+        _subjectName = s.Name;
+        _renameVisible = true;
+    }
+
+    private async Task CreateAsync()
+    {
+        var types = _lessonTypes.Where(t => t.Selected).Select(t => t.Name).ToList();
+        if (string.IsNullOrWhiteSpace(_subjectName) || types.Count == 0)
+        {
+            Snackbar.Add("Укажите название и типы занятий", Severity.Warning);
+            return;
+        }
+
+        var (created, err) = await Api.CreateSubjectAsync(SemesterId,
+            new CreateSubjectRequest(_subjectName, types));
+        _createVisible = false;
+        if (created is null)
+        {
+            Snackbar.Add(err ?? "Ошибка создания", Severity.Error);
+            return;
+        }
+        Snackbar.Add("Дисциплина создана. Настройте структуру на вкладке «Структура».", Severity.Success);
+        Nav.NavigateTo($"/semesters/{SemesterId}/subjects/{created.Id}");
+    }
+
+    private async Task RenameAsync()
+    {
+        if (_renameId is null) return;
+        var ok = await Api.UpdateSubjectAsync(SemesterId, _renameId.Value, new UpdateSubjectRequest(_subjectName));
+        _renameVisible = false;
+        if (!ok)
+            Snackbar.Add("Ошибка сохранения", Severity.Error);
+        else
+        {
+            Snackbar.Add("Сохранено", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task DeleteAsync(SubjectListItemDto s)
+    {
+        if (!await Confirm.AskAsync($"Удалить дисциплину «{s.Name}»?")) return;
+
+        if (await Api.DeleteSubjectAsync(SemesterId, s.Id))
+        {
+            Snackbar.Add("Удалено", Severity.Success);
+            await LoadAsync();
+        }
+        else
+            Snackbar.Add("Ошибка удаления", Severity.Error);
+    }
+
+    private sealed class LessonTypeOption
+    {
+        public string Name { get; init; } = "";
+        public bool Selected { get; set; }
+    }
+}

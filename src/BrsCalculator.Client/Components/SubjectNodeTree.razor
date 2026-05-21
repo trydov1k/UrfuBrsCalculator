@@ -1,0 +1,66 @@
+@using BrsCalculator.Application.DTOs
+@using BrsCalculator.Domain.Enums
+
+@foreach (var node in NodeTreeHelper.ChildrenOf(Nodes, ParentId))
+{
+    var warnings = GetWarnings(node);
+    <MudPaper Class="pa-3 mb-2" Elevation="1" Style="@($"margin-left:{Depth * 20}px")">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Start">
+            <MudStack Spacing="0">
+                <MudText Typo="Typo.subtitle1">
+                    @node.Name
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="ml-1">
+                        @NodeTreeHelper.LevelLabel(node.LevelType, node.CertificationKind)
+                    </MudChip>
+                    @if (node.IsExam)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Secondary">Экзамен</MudChip>
+                    }
+                </MudText>
+                <MudText Typo="Typo.caption">
+                    Макс. @node.MaxScore · Вес @node.Coefficient.ToString("0.####", AppCulture.Russian)
+                    @if (node.LevelType == NodeLevelType.Component)
+                    {
+                        <span> · Расчёт: @node.ComputedScore.ToString("0.##")</span>
+                    }
+                </MudText>
+                @foreach (var w in warnings)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Warning">@w</MudText>
+                }
+            </MudStack>
+            @if (EditMode && NodeTreeHelper.IsEditableStructure(node))
+            {
+                <MudButtonGroup Variant="Variant.Outlined" Size="Size.Small">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                   OnClick="@(() => OnEdit.InvokeAsync(node))" />
+                    @if (NodeTreeHelper.CanAddChild(node))
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                       OnClick="@(() => OnAddChild.InvokeAsync(node))" />
+                    }
+                    @if (node.LevelType != NodeLevelType.LessonType)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                       OnClick="@(() => OnDelete.InvokeAsync(node))" />
+                    }
+                </MudButtonGroup>
+            }
+        </MudStack>
+    </MudPaper>
+    <SubjectNodeTree Nodes="Nodes" ParentId="node.Id" Depth="Depth + 1" EditMode="EditMode"
+                     OnEdit="OnEdit" OnAddChild="OnAddChild" OnDelete="OnDelete" />
+}
+
+@code {
+    [Parameter] public IReadOnlyList<SubjectNodeDto> Nodes { get; set; } = [];
+    [Parameter] public Guid? ParentId { get; set; }
+    [Parameter] public int Depth { get; set; }
+    [Parameter] public bool EditMode { get; set; }
+    [Parameter] public EventCallback<SubjectNodeDto> OnEdit { get; set; }
+    [Parameter] public EventCallback<SubjectNodeDto> OnAddChild { get; set; }
+    [Parameter] public EventCallback<SubjectNodeDto> OnDelete { get; set; }
+
+    private IEnumerable<string> GetWarnings(SubjectNodeDto node) =>
+        NodeTreeHelper.GetSiblingWeightWarnings(Nodes, node.ParentId, node.LevelType);
+}

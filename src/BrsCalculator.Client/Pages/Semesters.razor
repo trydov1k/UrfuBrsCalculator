@@ -1,0 +1,188 @@
+@page "/semesters"
+@page "/"
+@attribute [Authorize]
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject ConfirmService Confirm
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Spacing="2" Class="mb-4">
+    <MudText Typo="Typo.h4">Семестры</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add"
+               OnClick="OpenCreate"
+               Disabled="_loading">
+        Добавить семестр
+    </MudButton>
+</MudStack>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Class="mb-4" />
+}
+else if (!string.IsNullOrEmpty(_loadError))
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4">@_loadError</MudAlert>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreate">
+        Добавить семестр
+    </MudButton>
+}
+else if (_semesters!.Count == 0)
+{
+    <MudAlert Severity="Severity.Info" Class="mb-4">
+        У вас пока нет семестров. Нажмите кнопку ниже, чтобы создать первый.
+    </MudAlert>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large"
+               StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreate">
+        Создать первый семестр
+    </MudButton>
+}
+else
+{
+    <MudTable Items="_semesters" Hover="true" T="SemesterDto" OnRowClick="OnRowClick" Breakpoint="Breakpoint.Sm">
+        <HeaderContent>
+            <MudTh>Название</MudTh>
+            <MudTh>Год</MudTh>
+            <MudTh>Сезон</MudTh>
+            <MudTh>Дисциплин</MudTh>
+            <MudTh Style="width:120px" />
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Название">@context.Name</MudTd>
+            <MudTd DataLabel="Год">@context.AcademicYearStart</MudTd>
+            <MudTd DataLabel="Сезон">@SeasonLabel(context.Season)</MudTd>
+            <MudTd DataLabel="Дисциплин">@context.SubjectCount</MudTd>
+            <MudTd @onclick:stopPropagation="true">
+                <MudTooltip Text="Редактировать">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                   OnClick="@(() => OpenEdit(context))" />
+                </MudTooltip>
+                <MudTooltip Text="Удалить">
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                   OnClick="@(() => DeleteAsync(context))" />
+                </MudTooltip>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+<MudFab Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+        OnClick="OpenCreate" Class="semesters-fab" aria-label="Добавить семестр" />
+
+<MudDialog @bind-Visible="_dialogVisible">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_editId is null ? "Новый семестр" : "Редактировать семестр")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_name" Label="Название" Required="true" />
+        <MudNumericField @bind-Value="_year" Label="Год начала учебного года" Min="2020" Max="2035" Class="mt-2" />
+        <MudSelect @bind-Value="_season" Label="Сезон" Class="mt-2">
+            <MudSelectItem Value="SemesterSeason.Autumn">Осень</MudSelectItem>
+            <MudSelectItem Value="SemesterSeason.Spring">Весна</MudSelectItem>
+        </MudSelect>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _dialogVisible = false)">Отмена</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync">Сохранить</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<SemesterDto> _semesters = [];
+    private bool _loading = true;
+    private string? _loadError;
+    private bool _dialogVisible;
+    private Guid? _editId;
+    private string _name = "Осень 2025/2026";
+    private int _year = 2025;
+    private SemesterSeason _season = SemesterSeason.Autumn;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _loadError = null;
+        try
+        {
+            var list = await Api.GetSemestersAsync();
+            _semesters = list?.ToList() ?? [];
+            if (list is null)
+                _loadError = "Не удалось загрузить семестры. Проверьте, что API запущен (https://localhost:7212).";
+        }
+        catch (Exception ex)
+        {
+            _semesters = [];
+            _loadError = $"Ошибка связи с сервером: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OnRowClick(TableRowClickEventArgs<SemesterDto> args) =>
+        Nav.NavigateTo($"/semesters/{args.Item.Id}");
+
+    private static string SeasonLabel(SemesterSeason season) =>
+        season == SemesterSeason.Autumn ? "Осень" : "Весна";
+
+    private void OpenCreate()
+    {
+        _editId = null;
+        _name = "Осень 2025/2026";
+        _year = 2025;
+        _season = SemesterSeason.Autumn;
+        _dialogVisible = true;
+    }
+
+    private void OpenEdit(SemesterDto s)
+    {
+        _editId = s.Id;
+        _name = s.Name;
+        _year = s.AcademicYearStart;
+        _season = s.Season;
+        _dialogVisible = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_editId is null)
+        {
+            var created = await Api.CreateSemesterAsync(new CreateSemesterRequest(_name, _year, _season));
+            if (created is null)
+            {
+                Snackbar.Add("Ошибка создания. Проверьте API и авторизацию.", Severity.Error);
+                return;
+            }
+            Snackbar.Add("Семестр создан", Severity.Success);
+        }
+        else
+        {
+            var ok = await Api.UpdateSemesterAsync(_editId.Value,
+                new UpdateSemesterRequest(_name, _year, _season));
+            if (!ok)
+            {
+                Snackbar.Add("Ошибка сохранения", Severity.Error);
+                return;
+            }
+            Snackbar.Add("Семестр обновлён", Severity.Success);
+        }
+
+        _dialogVisible = false;
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(SemesterDto s)
+    {
+        if (!await Confirm.AskAsync($"Удалить семестр «{s.Name}» и все дисциплины?")) return;
+
+        if (await Api.DeleteSemesterAsync(s.Id))
+        {
+            Snackbar.Add("Семестр удалён", Severity.Success);
+            await LoadAsync();
+        }
+        else
+            Snackbar.Add("Ошибка удаления", Severity.Error);
+    }
+}

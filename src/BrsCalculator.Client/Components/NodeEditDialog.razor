@@ -1,0 +1,101 @@
+@using BrsCalculator.Application.DTOs
+@using BrsCalculator.Domain.Enums
+
+<MudDialog @bind-Visible="Visible">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(IsEdit ? "Редактировать узел" : "Добавить компонент")</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (ParentNode is not null)
+        {
+            <MudText Typo="Typo.caption" Class="mb-2">Родитель: @ParentNode.Name</MudText>
+        }
+        <MudTextField @bind-Value="_name" Label="Название" Required="true" />
+        @if (ShowMaxScore)
+        {
+            <MudNumericField @bind-Value="_maxScore" Label="Максимальный балл" Min="0.01m" Max="1000m"
+                             Culture="AppCulture.Russian" Class="mt-2" />
+        }
+        <MudNumericField @bind-Value="_coefficient" Label="Коэффициент (вес)" Min="0m" Step="0.1m"
+                         Culture="AppCulture.Russian" Format="0.####" Class="mt-2" />
+        @if (ShowExamFlag)
+        {
+            <MudCheckBox @bind-Value="_isExam" Label="Это экзамен/зачёт (макс. 100)" Class="mt-2" />
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Отмена</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit"
+                   Disabled="string.IsNullOrWhiteSpace(_name) || _submitting">
+            @(IsEdit ? "Сохранить" : "Добавить")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter] public bool IsEdit { get; set; }
+    [Parameter] public SubjectNodeDto? ParentNode { get; set; }
+    [Parameter] public SubjectNodeDto? EditNode { get; set; }
+    [Parameter] public EventCallback<NodeEditResult> OnSave { get; set; }
+    [Parameter] public bool AllowExamFlag { get; set; }
+
+    private string _name = "";
+    private decimal _maxScore = 10;
+    private decimal _coefficient = 1;
+    private bool _isExam;
+    private bool _submitting;
+
+    private bool ShowMaxScore =>
+        IsEdit ? EditNode?.LevelType == NodeLevelType.Component :
+        ParentNode?.LevelType == NodeLevelType.Component ||
+        (ParentNode?.LevelType == NodeLevelType.Certification && ParentNode.CertificationKind == CertificationKind.Current);
+
+    private bool ShowExamFlag => AllowExamFlag;
+
+    protected override void OnParametersSet()
+    {
+        if (IsEdit && EditNode is not null)
+        {
+            _name = EditNode.Name;
+            _maxScore = EditNode.MaxScore;
+            _coefficient = EditNode.Coefficient;
+            _isExam = EditNode.IsExam;
+            _submitting = false;
+        }
+        else if (!IsEdit && ParentNode is not null)
+        {
+            _name = "";
+            _maxScore = 10;
+            _coefficient = 1;
+            _isExam = false;
+            _submitting = false;
+        }
+    }
+
+    private async Task Cancel() => await SetVisible(false);
+
+    private async Task Submit()
+    {
+        if (_submitting) return;
+        _submitting = true;
+        try
+        {
+            await OnSave.InvokeAsync(new NodeEditResult(_name.Trim(), _maxScore, _coefficient, _isExam));
+            await SetVisible(false);
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private async Task SetVisible(bool value)
+    {
+        Visible = value;
+        await VisibleChanged.InvokeAsync(value);
+    }
+
+    public record NodeEditResult(string Name, decimal MaxScore, decimal Coefficient, bool IsExam);
+}

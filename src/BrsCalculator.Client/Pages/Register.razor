@@ -1,0 +1,33 @@
+@page "/register"
+@attribute [AllowAnonymous]
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<MudPaper Class="pa-6 mx-auto" Style="max-width:420px">
+    <MudText Typo="Typo.h5" Class="mb-4">Регистрация</MudText>
+    <MudTextField @bind-Value="_email" Label="Email" InputType="InputType.Email" Required="true" />
+    <MudTextField @bind-Value="_password" Label="Пароль" InputType="InputType.Password" Required="true" Class="mt-3"
+                  HelperText="Минимум 8 символов, хотя бы одна цифра" />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4" OnClick="RegisterAsync" Disabled="_busy">Создать аккаунт</MudButton>
+    <MudLink Href="/login" Class="mt-3 d-block">Уже есть аккаунт</MudLink>
+</MudPaper>
+
+@code {
+    private string _email = "";
+    private string _password = "";
+    private bool _busy;
+
+    private async Task RegisterAsync()
+    {
+        _busy = true;
+        var (result, error) = await Auth.RegisterAsync(new RegisterRequest(_email, _password));
+        _busy = false;
+        if (result is null)
+        {
+            Snackbar.Add(error ?? "Не удалось зарегистрироваться", Severity.Error);
+            return;
+        }
+        Nav.NavigateTo("/semesters");
+    }
+}

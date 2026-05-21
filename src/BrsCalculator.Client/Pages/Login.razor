@@ -1,0 +1,38 @@
+@page "/login"
+@attribute [AllowAnonymous]
+@inject AuthService Auth
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<MudPaper Class="pa-6 mx-auto" Style="max-width:420px">
+    <MudText Typo="Typo.h5" Class="mb-4">Вход</MudText>
+    <MudTextField @bind-Value="_email" Label="Email" InputType="InputType.Email" Required="true" />
+    <MudTextField @bind-Value="_password" Label="Пароль" InputType="InputType.Password" Required="true" Class="mt-3" />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4" OnClick="LoginAsync" Disabled="_busy">Войти</MudButton>
+    <MudLink Href="/register" Class="mt-3 d-block">Регистрация</MudLink>
+    <MudLink Href="/forgot-password" Class="mt-1 d-block">Забыли пароль?</MudLink>
+</MudPaper>
+
+@code {
+    [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+
+    private string _email = "";
+    private string _password = "";
+    private bool _busy;
+
+    private async Task LoginAsync()
+    {
+        _busy = true;
+        var result = await Auth.LoginAsync(new LoginRequest(_email, _password));
+        _busy = false;
+        if (result is null)
+        {
+            Snackbar.Add("Неверный email или пароль", Severity.Error);
+            return;
+        }
+        if (!string.IsNullOrWhiteSpace(ReturnUrl))
+            Nav.NavigateTo(ReturnUrl);
+        else
+            Nav.NavigateTo("/semesters");
+    }
+}
