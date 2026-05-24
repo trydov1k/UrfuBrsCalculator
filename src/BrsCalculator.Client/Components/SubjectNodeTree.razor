@@ -39,7 +39,7 @@
                         <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
                                        OnClick="@(() => OnAddChild.InvokeAsync(node))" />
                     }
-                    @if (node.LevelType != NodeLevelType.LessonType)
+                    @if (NodeTreeHelper.CanDelete(node))
                     {
                         <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
                                        OnClick="@(() => OnDelete.InvokeAsync(node))" />
@@ -62,5 +62,5 @@
     [Parameter] public EventCallback<SubjectNodeDto> OnDelete { get; set; }
 
     private IEnumerable<string> GetWarnings(SubjectNodeDto node) =>
-        NodeTreeHelper.GetSiblingWeightWarnings(Nodes, node.ParentId, node.LevelType);
+        NodeTreeHelper.GetStructureWarnings(Nodes, node.ParentId);
 }

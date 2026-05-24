@@ -14,47 +14,42 @@ public static class NodeTreeHelper
     public static bool IsEditableStructure(SubjectNodeDto node) =>
         node.LevelType != NodeLevelType.Subject;
 
+    public static bool CanDelete(SubjectNodeDto node) =>
+        node.LevelType == NodeLevelType.Component;
+
     public static bool CanMarkExam(SubjectNodeDto parent) =>
         parent.LevelType == NodeLevelType.Certification &&
         parent.CertificationKind == CertificationKind.Intermediate;
 
-    private const decimal WeightTolerance = 0.0001m;
+    private const decimal MaxScoreTarget = 100m;
+    private const decimal MaxScoreTolerance = 0.01m;
+    private const decimal LeafWeightTarget = 1m;
+    private const decimal LeafWeightTolerance = 0.0001m;
 
-    public static decimal SiblingCoefficientSum(IReadOnlyList<SubjectNodeDto> nodes, Guid? parentId) =>
-        nodes.Where(n => n.ParentId == parentId).Sum(n => n.Coefficient);
-
-    public static decimal SiblingMaxScoreSum(IReadOnlyList<SubjectNodeDto> nodes, Guid? parentId) =>
-        nodes.Where(n => n.ParentId == parentId).Sum(n => n.MaxScore);
-
-    public static IEnumerable<string> GetSiblingWeightWarnings(
-        IReadOnlyList<SubjectNodeDto> nodes, Guid? parentId, NodeLevelType level)
+    public static IEnumerable<string> GetStructureWarnings(
+        IReadOnlyList<SubjectNodeDto> nodes, Guid? parentId)
     {
         if (!parentId.HasValue)
             yield break;
 
-        var weightSum = SiblingCoefficientSum(nodes, parentId);
-        if (Math.Abs(weightSum - 1m) <= WeightTolerance)
+        var siblings = nodes.Where(n => n.ParentId == parentId).ToList();
+        if (siblings.Count == 0)
             yield break;
 
-        if (level == NodeLevelType.Component && weightSum > 1m + WeightTolerance)
+        var weightedSum = siblings.Sum(n => n.MaxScore * n.Coefficient);
+        if (Math.Abs(weightedSum - MaxScoreTarget) > MaxScoreTolerance)
+            yield return $"Сумма (макс. × вес): {AppCulture.FormatScore(weightedSum)} (ожидается {AppCulture.FormatScore(MaxScoreTarget)})";
+
+        var wrongWeightLeaves = siblings
+            .Where(n => n.IsLeaf && Math.Abs(n.Coefficient - LeafWeightTarget) > LeafWeightTolerance)
+            .ToList();
+
+        if (wrongWeightLeaves.Count > 0)
         {
-            var maxSum = SiblingMaxScoreSum(nodes, parentId);
-            if (Math.Abs(maxSum - 100m) <= WeightTolerance)
-                yield break;
-
-            yield return
-                $"Сумма весов компонентов: {weightSum:0.####}; при сумме > 1 сумма макс. баллов должна быть 100 (сейчас {maxSum:0.##})";
-            yield break;
+            var details = string.Join(", ", wrongWeightLeaves.Select(n =>
+                $"«{n.Name}» ({n.Coefficient.ToString("0.####", AppCulture.Russian)})"));
+            yield return $"Конечные компоненты должны иметь вес 1: {details}";
         }
-
-        if (level == NodeLevelType.Component)
-        {
-            yield return
-                $"Сумма весов компонентов: {weightSum:0.####} (ожидается 1; если больше 1 — сумма макс. баллов должна быть 100)";
-            yield break;
-        }
-
-        yield return $"Сумма весов на уровне: {weightSum:0.####} (ожидается 1)";
     }
 
     public static string LevelLabel(NodeLevelType level, CertificationKind? cert) => level switch
