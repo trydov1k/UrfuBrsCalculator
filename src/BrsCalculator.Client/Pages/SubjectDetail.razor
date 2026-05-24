@@ -292,12 +292,27 @@ else
 
         if (_nodeDialogIsEdit && _dialogEditNode is not null)
         {
-            var max = _dialogEditNode.LevelType == NodeLevelType.Component && !_dialogEditNode.IsExam
-                ? result.MaxScore
-                : _dialogEditNode.MaxScore;
-            if (result.IsExam) max = 100;
+            string name;
+            decimal max;
+            bool isExam;
+            if (NodeTreeHelper.IsCoefficientOnlyEdit(_dialogEditNode))
+            {
+                name = _dialogEditNode.Name;
+                max = _dialogEditNode.MaxScore;
+                isExam = _dialogEditNode.IsExam;
+            }
+            else
+            {
+                name = result.Name;
+                max = _dialogEditNode.LevelType == NodeLevelType.Component && !_dialogEditNode.IsExam
+                    ? result.MaxScore
+                    : _dialogEditNode.MaxScore;
+                if (result.IsExam) max = 100;
+                isExam = result.IsExam;
+            }
+
             var (updated, err) = await Api.UpdateNodeAsync(SemesterId, SubjectId, _dialogEditNode.Id,
-                new UpdateNodeRequest(result.Name, max, result.Coefficient, result.IsExam));
+                new UpdateNodeRequest(name, max, result.Coefficient, isExam));
             if (updated is null)
             {
                 Snackbar.Add(err ?? "Ошибка сохранения", Severity.Error);

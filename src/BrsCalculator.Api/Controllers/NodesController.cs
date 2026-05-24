@@ -83,13 +83,21 @@ public class NodesController : ControllerBase
         var node = subject.Nodes.FirstOrDefault(n => n.Id == nodeId);
         if (node is null) return NotFound();
 
-        if (request.IsExam && !node.IsExam && subject.Nodes.Any(n => n.IsExam && n.Id != nodeId))
-            return BadRequest("В дисциплине может быть только один экзамен.");
+        if (SubjectNodeRules.IsCoefficientOnlyEdit(node.LevelType))
+        {
+            node.Coefficient = request.Coefficient;
+        }
+        else
+        {
+            if (request.IsExam && !node.IsExam && subject.Nodes.Any(n => n.IsExam && n.Id != nodeId))
+                return BadRequest("В дисциплине может быть только один экзамен.");
 
-        node.Name = request.Name;
-        node.MaxScore = node.IsExam || request.IsExam ? 100 : ScorePrecision.Round(request.MaxScore);
-        node.Coefficient = request.Coefficient;
-        node.IsExam = request.IsExam;
+            node.Name = request.Name;
+            node.MaxScore = node.IsExam || request.IsExam ? 100 : ScorePrecision.Round(request.MaxScore);
+            node.Coefficient = request.Coefficient;
+            node.IsExam = request.IsExam;
+        }
+
         await _db.SaveChangesAsync();
 
         return Ok(SubjectMapper.ToDetail(subject, subject.Nodes));
@@ -106,6 +114,9 @@ public class NodesController : ControllerBase
 
         if (node.LevelType == NodeLevelType.Subject)
             return BadRequest("Корневой узел дисциплины удалить нельзя.");
+
+        if (!SubjectNodeRules.CanDelete(node.LevelType))
+            return BadRequest("Удалять можно только компоненты.");
 
         var ids = CollectSubtreeIds(subject.Nodes, nodeId)
             .OrderByDescending(id => subject.Nodes.First(n => n.Id == id).Path.Length)

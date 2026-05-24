@@ -1,4 +1,5 @@
 using BrsCalculator.Application.DTOs;
+using BrsCalculator.Domain.Brs;
 using BrsCalculator.Domain.Enums;
 
 namespace BrsCalculator.Client.Services;
@@ -15,7 +16,10 @@ public static class NodeTreeHelper
         node.LevelType != NodeLevelType.Subject;
 
     public static bool CanDelete(SubjectNodeDto node) =>
-        node.LevelType == NodeLevelType.Component;
+        SubjectNodeRules.CanDelete(node.LevelType);
+
+    public static bool IsCoefficientOnlyEdit(SubjectNodeDto node) =>
+        SubjectNodeRules.IsCoefficientOnlyEdit(node.LevelType);
 
     public static bool CanMarkExam(SubjectNodeDto parent) =>
         parent.LevelType == NodeLevelType.Certification &&

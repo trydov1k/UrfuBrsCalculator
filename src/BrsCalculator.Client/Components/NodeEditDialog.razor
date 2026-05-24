@@ -1,16 +1,24 @@
 @using BrsCalculator.Application.DTOs
+@using BrsCalculator.Client.Services
 @using BrsCalculator.Domain.Enums
 
 <MudDialog @bind-Visible="Visible">
     <TitleContent>
-        <MudText Typo="Typo.h6">@(IsEdit ? "Редактировать узел" : "Добавить компонент")</MudText>
+        <MudText Typo="Typo.h6">@DialogTitle</MudText>
     </TitleContent>
     <DialogContent>
         @if (ParentNode is not null)
         {
             <MudText Typo="Typo.caption" Class="mb-2">Родитель: @ParentNode.Name</MudText>
         }
-        <MudTextField @bind-Value="_name" Label="Название" Required="true" />
+        @if (!CoefficientOnly)
+        {
+            <MudTextField @bind-Value="_name" Label="Название" Required="true" />
+        }
+        else if (EditNode is not null)
+        {
+            <MudText Typo="Typo.body2" Class="mb-2">@EditNode.Name</MudText>
+        }
         @if (ShowMaxScore)
         {
             <MudNumericField @bind-Value="_maxScore" Label="Максимальный балл" Min="0.01m" Max="1000m"
@@ -27,7 +35,7 @@
     <DialogActions>
         <MudButton OnClick="Cancel">Отмена</MudButton>
         <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit"
-                   Disabled="string.IsNullOrWhiteSpace(_name) || _submitting">
+                   Disabled="@(!CanSubmit || _submitting)">
             @(IsEdit ? "Сохранить" : "Добавить")
         </MudButton>
     </DialogActions>
@@ -48,12 +56,21 @@
     private bool _isExam;
     private bool _submitting;
 
-    private bool ShowMaxScore =>
-        IsEdit ? EditNode?.LevelType == NodeLevelType.Component :
-        ParentNode?.LevelType == NodeLevelType.Component ||
-        (ParentNode?.LevelType == NodeLevelType.Certification && ParentNode.CertificationKind == CertificationKind.Current);
+    private bool CoefficientOnly =>
+        IsEdit && EditNode is not null && NodeTreeHelper.IsCoefficientOnlyEdit(EditNode);
 
-    private bool ShowExamFlag => AllowExamFlag;
+    private string DialogTitle => IsEdit
+        ? (CoefficientOnly ? "Редактировать вес" : "Редактировать узел")
+        : "Добавить компонент";
+
+    private bool CanSubmit => CoefficientOnly || !string.IsNullOrWhiteSpace(_name);
+
+    private bool ShowMaxScore =>
+        !CoefficientOnly && (IsEdit ? EditNode?.LevelType == NodeLevelType.Component :
+        ParentNode?.LevelType == NodeLevelType.Component ||
+        (ParentNode?.LevelType == NodeLevelType.Certification && ParentNode.CertificationKind == CertificationKind.Current));
+
+    private bool ShowExamFlag => !CoefficientOnly && AllowExamFlag;
 
     protected override void OnParametersSet()
     {
@@ -83,7 +100,10 @@
         _submitting = true;
         try
         {
-            await OnSave.InvokeAsync(new NodeEditResult(_name.Trim(), AppCulture.RoundScore(_maxScore), _coefficient, _isExam));
+            var name = CoefficientOnly && EditNode is not null ? EditNode.Name : _name.Trim();
+            var maxScore = CoefficientOnly && EditNode is not null ? EditNode.MaxScore : AppCulture.RoundScore(_maxScore);
+            var isExam = CoefficientOnly && EditNode is not null ? EditNode.IsExam : _isExam;
+            await OnSave.InvokeAsync(new NodeEditResult(name, maxScore, _coefficient, isExam));
             await SetVisible(false);
         }
         finally
