@@ -97,11 +97,13 @@ else
                 <MudTd>
                     <span style="padding-left:@(Depth(context) * 16)px">@context.Name</span>
                 </MudTd>
-                <MudTd>@context.MaxScore</MudTd>
+                <MudTd>@AppCulture.FormatScore(context.MaxScore)</MudTd>
                 <MudTd>
                     <MudNumericField T="decimal?" Value="@GetScoreValue(context)"
                                      ValueChanged="@(v => OnScoreChangedAsync(context, v))"
-                                     Min="0m" Max="@context.MaxScore" Culture="AppCulture.Russian"
+                                     Min="0m" Max="@context.MaxScore" Step="0.01m"
+                                     Culture="AppCulture.Russian" Format="@ScorePrecision.DisplayFormat"
+                                     Pattern="[0-9]+([,.][0-9]{0,2})?"
                                      Style="max-width:130px" Disabled="@(!context.IsLeaf)" />
                 </MudTd>
                 <MudTd>@GetComputed(context).ToString("0.##")</MudTd>
@@ -184,12 +186,14 @@ else
     private decimal? GetScoreValue(SubjectNodeDto node)
     {
         if (_whatIfMode && _whatIfOverrides.TryGetValue(node.Id, out var v))
-            return v;
-        return node.ActualScore;
+            return AppCulture.RoundScore(v);
+        return AppCulture.RoundScore(node.ActualScore);
     }
 
     private async Task OnScoreChangedAsync(SubjectNodeDto node, decimal? value)
     {
+        value = AppCulture.RoundScore(value);
+
         if (_whatIfMode)
         {
             _whatIfOverrides[node.Id] = node.IsExam && value.HasValue
@@ -233,7 +237,8 @@ else
             return;
 
         var raw = _whatIfOverrides.TryGetValue(exam.Id, out var value) ? value : exam.ActualScore;
-        _whatIfOverrides[exam.Id] = Math.Clamp(Math.Max(40m, raw ?? 0), 0, exam.MaxScore);
+        _whatIfOverrides[exam.Id] = AppCulture.RoundScore(
+            Math.Clamp(Math.Max(40m, raw ?? 0), 0, exam.MaxScore));
     }
 
     private async Task CalculateWhatIfAsync()

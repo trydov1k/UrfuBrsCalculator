@@ -14,7 +14,8 @@
         @if (ShowMaxScore)
         {
             <MudNumericField @bind-Value="_maxScore" Label="Максимальный балл" Min="0.01m" Max="1000m"
-                             Culture="AppCulture.Russian" Class="mt-2" />
+                             Culture="AppCulture.Russian" Format="@ScorePrecision.DisplayFormat"
+                             Pattern="[0-9]+([,.][0-9]{0,2})?" Class="mt-2" />
         }
         <MudNumericField @bind-Value="_coefficient" Label="Коэффициент (вес)" Min="0m" Step="0.1m"
                          Culture="AppCulture.Russian" Format="0.####" Class="mt-2" />
@@ -82,7 +83,7 @@
         _submitting = true;
         try
         {
-            await OnSave.InvokeAsync(new NodeEditResult(_name.Trim(), _maxScore, _coefficient, _isExam));
+            await OnSave.InvokeAsync(new NodeEditResult(_name.Trim(), AppCulture.RoundScore(_maxScore), _coefficient, _isExam));
             await SetVisible(false);
         }
         finally

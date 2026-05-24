@@ -18,7 +18,7 @@
                     }
                 </MudText>
                 <MudText Typo="Typo.caption">
-                    Макс. @node.MaxScore · Вес @node.Coefficient.ToString("0.####", AppCulture.Russian)
+                    Макс. @AppCulture.FormatScore(node.MaxScore) · Вес @node.Coefficient.ToString("0.####", AppCulture.Russian)
                     @if (node.LevelType == NodeLevelType.Component)
                     {
                         <span> · Расчёт: @node.ComputedScore.ToString("0.##")</span>

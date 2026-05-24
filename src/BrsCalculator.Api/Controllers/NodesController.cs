@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using BrsCalculator.Application.DTOs;
 using BrsCalculator.Application.Mapping;
+using BrsCalculator.Domain.Brs;
 using BrsCalculator.Domain.Entities;
 using BrsCalculator.Domain.Enums;
 using BrsCalculator.Infrastructure.Persistence;
@@ -59,7 +60,7 @@ public class NodesController : ControllerBase
             Name = request.Name,
             LevelType = request.LevelType,
             CertificationKind = request.CertificationKind,
-            MaxScore = request.IsExam ? 100 : request.MaxScore,
+            MaxScore = request.IsExam ? 100 : ScorePrecision.Round(request.MaxScore),
             Coefficient = request.Coefficient,
             IsExam = request.IsExam,
             SortOrder = sortOrder
@@ -86,7 +87,7 @@ public class NodesController : ControllerBase
             return BadRequest("В дисциплине может быть только один экзамен.");
 
         node.Name = request.Name;
-        node.MaxScore = node.IsExam || request.IsExam ? 100 : request.MaxScore;
+        node.MaxScore = node.IsExam || request.IsExam ? 100 : ScorePrecision.Round(request.MaxScore);
         node.Coefficient = request.Coefficient;
         node.IsExam = request.IsExam;
         await _db.SaveChangesAsync();
@@ -144,7 +145,7 @@ public class NodesController : ControllerBase
         if (node is null) return NotFound();
 
         if (request.ActualScore.HasValue)
-            node.ActualScore = Math.Clamp(request.ActualScore.Value, 0, node.MaxScore);
+            node.ActualScore = Math.Clamp(ScorePrecision.Round(request.ActualScore.Value), 0, node.MaxScore);
         else
             node.ActualScore = null;
 
