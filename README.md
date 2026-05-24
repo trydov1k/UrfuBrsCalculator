@@ -39,7 +39,24 @@ dotnet run
 }
 ```
 
-И запустите БД: `docker compose up -d`.
+И запустите БД: `docker compose up -d postgres`.
+
+### Полный запуск в Docker
+
+API (включая Blazor UI), PostgreSQL:
+
+```bash
+docker compose up -d --build
+```
+
+| Сервис | URL |
+|--------|-----|
+| Приложение (UI + API) | http://localhost:8080 |
+| Swagger | http://localhost:8080/swagger |
+
+UI и API на одном origin — отдельный nginx не нужен. В Production-сборке WASM `ApiBaseUrl` пустой, запросы идут на `http://localhost:8080`.
+
+Остановка: `docker compose down`. Данные БД сохраняются в volume `pgdata`.
 
 ### 2. Клиент
 
@@ -48,7 +65,7 @@ cd src/BrsCalculator.Client
 dotnet run
 ```
 
-Укажите URL API в `wwwroot/appsettings.json` (`ApiBaseUrl`, по умолчанию `https://localhost:7212/`).
+URL API задаётся в `wwwroot/appsettings.Development.json` (`ApiBaseUrl`: `https://localhost:7212/`).
 
 ### 3. Регистрация и работа
 

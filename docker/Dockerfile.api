@@ -1,0 +1,25 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+COPY src/BrsCalculator.Domain/BrsCalculator.Domain.csproj src/BrsCalculator.Domain/
+COPY src/BrsCalculator.Application/BrsCalculator.Application.csproj src/BrsCalculator.Application/
+COPY src/BrsCalculator.Infrastructure/BrsCalculator.Infrastructure.csproj src/BrsCalculator.Infrastructure/
+COPY src/BrsCalculator.Client/BrsCalculator.Client.csproj src/BrsCalculator.Client/
+COPY src/BrsCalculator.Api/BrsCalculator.Api.csproj src/BrsCalculator.Api/
+
+RUN dotnet restore src/BrsCalculator.Api/BrsCalculator.Api.csproj \
+    && dotnet restore src/BrsCalculator.Client/BrsCalculator.Client.csproj
+
+COPY src/ src/
+RUN dotnet publish src/BrsCalculator.Client/BrsCalculator.Client.csproj -c Release -o /app/client --no-restore
+RUN dotnet publish src/BrsCalculator.Api/BrsCalculator.Api.csproj -c Release -o /app/publish --no-restore
+RUN mkdir -p /app/publish/wwwroot && cp -r /app/client/wwwroot/. /app/publish/wwwroot/
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+WORKDIR /app
+COPY --from=build /app/publish .
+
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "BrsCalculator.Api.dll"]

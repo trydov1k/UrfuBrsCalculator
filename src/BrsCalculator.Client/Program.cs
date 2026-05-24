@@ -15,7 +15,9 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-var apiBase = builder.Configuration["ApiBaseUrl"] ?? "https://localhost:7290/";
+var apiBase = builder.Configuration["ApiBaseUrl"];
+if (string.IsNullOrWhiteSpace(apiBase))
+    apiBase = builder.HostEnvironment.BaseAddress;
 
 builder.Services.AddMudServices();
 builder.Services.AddAuthorizationCore();
