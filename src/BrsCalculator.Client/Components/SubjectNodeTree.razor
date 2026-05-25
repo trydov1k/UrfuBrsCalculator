@@ -18,10 +18,13 @@
                     }
                 </MudText>
                 <MudText Typo="Typo.caption">
-                    Макс. @AppCulture.FormatScore(node.MaxScore) · Вес @node.Coefficient.ToString("0.####", AppCulture.Russian)
+                    Макс. @AppCulture.FormatScore(node.MaxScore)@NodeTreeHelper.FormatBrsSuffix(NodeTreeHelper.ToBrsPoints(Nodes, node, node.MaxScore))
+                    · Вес @node.Coefficient.ToString("0.####", AppCulture.Russian)
                     @if (node.LevelType == NodeLevelType.Component)
                     {
-                        <span> · Расчёт: @node.ComputedScore.ToString("0.##")</span>
+                        <span>
+                            · Расчёт: @node.ComputedScore.ToString("0.##")@NodeTreeHelper.FormatBrsSuffix(NodeTreeHelper.ToBrsPoints(Nodes, node, node.ComputedScore))
+                        </span>
                     }
                 </MudText>
                 @foreach (var w in warnings)

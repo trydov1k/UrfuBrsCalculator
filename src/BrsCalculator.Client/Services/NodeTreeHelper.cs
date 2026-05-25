@@ -75,4 +75,34 @@ public static class NodeTreeHelper
         var siblings = nodes.Count(n => n.ParentId == parentId);
         return siblings == 0 ? 1m : Math.Round(1m / (siblings + 1), 4);
     }
+
+    /// <summary>
+    /// Product of coefficients from <paramref name="node"/> up to (excluding) the subject root.
+    /// </summary>
+    public static decimal GetCumulativeCoefficient(
+        IReadOnlyList<SubjectNodeDto> nodes,
+        SubjectNodeDto node)
+    {
+        var byId = nodes.ToDictionary(n => n.Id);
+        decimal product = 1m;
+        var current = node;
+        while (current.LevelType != NodeLevelType.Subject)
+        {
+            product *= current.Coefficient;
+            if (current.ParentId is not { } parentId || !byId.TryGetValue(parentId, out var parent))
+                break;
+            current = parent;
+        }
+
+        return product;
+    }
+
+    public static decimal ToBrsPoints(
+        IReadOnlyList<SubjectNodeDto> nodes,
+        SubjectNodeDto node,
+        decimal score) =>
+        score * GetCumulativeCoefficient(nodes, node);
+
+    public static string FormatBrsSuffix(decimal brsPoints) =>
+        $" · БРС: {brsPoints.ToString("0.##", AppCulture.Russian)}";
 }
