@@ -22,10 +22,12 @@
         @if (ShowMaxScore)
         {
             <MudNumericField @bind-Value="_maxScore" Label="Максимальный балл" Min="0.01m" Max="1000m"
-                             Culture="AppCulture.Russian" Format="@ScorePrecision.DisplayFormat"
-                             Pattern="[0-9]+([,.][0-9]{0,2})?" Class="mt-2" />
+                             Step="@ScorePrecision.ScoreStep"
+                             Culture="AppCulture.Russian" Format="@ScorePrecision.InputFormat"
+                             Class="mt-2" />
         }
-        <MudNumericField @bind-Value="_coefficient" Label="Коэффициент (вес)" Min="0m" Step="0.1m"
+        <MudNumericField @bind-Value="_coefficient" Label="Коэффициент (вес)" Min="0m"
+                         Step="@ScorePrecision.CoefficientStep"
                          Culture="AppCulture.Russian" Format="0.####" Class="mt-2" />
         @if (ShowExamFlag)
         {

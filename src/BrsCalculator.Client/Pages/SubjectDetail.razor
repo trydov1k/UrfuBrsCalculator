@@ -90,23 +90,26 @@ else
             <HeaderContent>
                 <MudTh>Компонент</MudTh>
                 <MudTh>Макс.</MudTh>
+                <MudTh Class="mud-text-secondary" Style="width:4.5rem">БРС</MudTh>
                 <MudTh>Набрано</MudTh>
                 <MudTh>Расчёт</MudTh>
+                <MudTh Class="mud-text-secondary" Style="width:4.5rem">БРС</MudTh>
             </HeaderContent>
             <RowTemplate>
                 <MudTd>
                     <span style="padding-left:@(Depth(context) * 16)px">@context.Name</span>
                 </MudTd>
                 <MudTd>@AppCulture.FormatScore(context.MaxScore)</MudTd>
+                <MudTd Class="mud-text-secondary">@FormatBrsValue(context, context.MaxScore)</MudTd>
                 <MudTd>
-                    <MudNumericField T="decimal?" Value="@GetScoreValue(context)"
-                                     ValueChanged="@(v => OnScoreChangedAsync(context, v))"
-                                     Min="0m" Max="@context.MaxScore" Step="0.01m"
-                                     Culture="AppCulture.Russian" Format="@ScorePrecision.DisplayFormat"
-                                     Pattern="[0-9]+([,.][0-9]{0,2})?"
-                                     Style="max-width:130px" Disabled="@(!context.IsLeaf)" />
+                    <ScoreInput @key="context.Id"
+                                Score="@GetScoreValue(context)"
+                                MaxScore="@context.MaxScore"
+                                Disabled="@(!context.IsLeaf)"
+                                OnCommit="@(v => OnScoreChangedAsync(context, v))" />
                 </MudTd>
                 <MudTd>@GetComputed(context).ToString("0.##")</MudTd>
+                <MudTd Class="mud-text-secondary">@FormatBrsValue(context, GetComputed(context))</MudTd>
             </RowTemplate>
         </MudTable>
     }
@@ -147,7 +150,6 @@ else
     private string _targetGrade = "4";
     private WhatIfResultDto? _whatIfResult;
     private readonly Dictionary<Guid, decimal?> _whatIfOverrides = new();
-
     private bool _nodeDialogVisible;
     private bool _nodeDialogIsEdit;
     private SubjectNodeDto? _dialogParent;
@@ -158,7 +160,7 @@ else
         ? _whatIfPreview : _subject!;
 
     private IEnumerable<SubjectNodeDto> ScoreRows => DisplaySubject.Nodes
-        .Where(n => n.LevelType == NodeLevelType.Component || n.LevelType == NodeLevelType.Certification)
+        .Where(n => n.LevelType != NodeLevelType.Subject)
         .OrderBy(n => n.Path);
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
@@ -182,6 +184,10 @@ else
 
     private decimal GetComputed(SubjectNodeDto node) =>
         DisplaySubject.Nodes.FirstOrDefault(n => n.Id == node.Id)?.ComputedScore ?? node.ComputedScore;
+
+    private string FormatBrsValue(SubjectNodeDto node, decimal score) =>
+        NodeTreeHelper.ToBrsPoints(DisplaySubject.Nodes, node, score)
+            .ToString("0.##", AppCulture.Russian);
 
     private decimal? GetScoreValue(SubjectNodeDto node)
     {
