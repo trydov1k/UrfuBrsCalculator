@@ -3,9 +3,6 @@
 **/.vscode
 **/bin
 **/obj
-**/*.db
-**/*.db-shm
-**/*.db-wal
 **/node_modules
 .publish-test*/
 publish/
