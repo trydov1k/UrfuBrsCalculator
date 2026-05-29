@@ -7,5 +7,4 @@ build:
   dockerfile: docker/Dockerfile.api
 
 run:
-  containerPort: 8080
-  servicePort: 8080
+  containerPort: 80
