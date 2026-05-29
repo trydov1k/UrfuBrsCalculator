@@ -6,7 +6,6 @@ using BrsCalculator.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
@@ -19,16 +18,12 @@ public static class DependencyInjection
     {
         services.AddApplication();
 
+        var connectionString = configuration.GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException(
+                "Connection string 'DefaultConnection' is not configured.");
+
         services.AddDbContext<AppDbContext>(options =>
-        {
-            var connectionString = configuration.GetConnectionString("DefaultConnection");
-            options.ConfigureWarnings(w =>
-                w.Ignore(RelationalEventId.PendingModelChangesWarning));
-            if (string.IsNullOrEmpty(connectionString))
-                options.UseSqlite("Data Source=brscalculator.db");
-            else
-                options.UseNpgsql(connectionString);
-        });
+            options.UseNpgsql(connectionString));
 
         services.AddIdentity<ApplicationUser, IdentityRole>(options =>
             {

@@ -1,6 +1,6 @@
-@BrsCalculator.Api_HostAddress = http://localhost:5106
+@BrsCalculator.Api_HostAddress = https://localhost:7212
 
-GET {{BrsCalculator.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+### Swagger (Development)
+GET {{BrsCalculator.Api_HostAddress}}/swagger/v1/swagger.json
 
 ###

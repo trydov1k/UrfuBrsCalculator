@@ -6,7 +6,7 @@
 
 - **.NET 10** — C#, ASP.NET Core Web API, Blazor WebAssembly
 - **MudBlazor** — UI
-- **EF Core** — PostgreSQL (продакшен) или SQLite (локально по умолчанию)
+- **EF Core** — PostgreSQL
 - **ASP.NET Core Identity + JWT** — аутентификация
 
 ## Структура solution
@@ -24,22 +24,14 @@ src/
 
 ### 1. API
 
+Запустите PostgreSQL: `docker compose up -d postgres`.
+
 ```bash
 cd src/BrsCalculator.Api
 dotnet run
 ```
 
-По умолчанию используется SQLite (`brscalculator.db` в каталоге API). Swagger: `https://localhost:7212/swagger`.
-
-Для PostgreSQL задайте строку подключения в `appsettings.Development.json`:
-
-```json
-"ConnectionStrings": {
-  "DefaultConnection": "Host=localhost;Database=brscalculator;Username=brs;Password=brs_secret"
-}
-```
-
-И запустите БД: `docker compose up -d postgres`.
+Строка подключения — в `appsettings.json` / `appsettings.Development.json`. Swagger (Development): `https://localhost:7212/swagger`.
 
 ### Полный запуск в Docker
 

@@ -5,8 +5,6 @@ obj/
 *.user
 *.suo
 appsettings.*.local.json
-brscalculator.db
-brscalculator.db-*
 
 # Docker / publish artifacts
 .publish-test*/
